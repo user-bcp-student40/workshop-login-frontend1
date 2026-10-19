@@ -2,6 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, NgZone, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import axios from 'axios';
+import { AuthSessionService } from '../services/auth-session.service';
 import { formatTaskLabel } from '../utils/legacy-format';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -26,15 +27,20 @@ export class DashboardComponent implements OnInit {
   loading: any = true;
   error: any = '';
 
-  constructor(private router: Router, private cdr: ChangeDetectorRef, private zone: NgZone) {}
+  constructor(
+    private router: Router,
+    private cdr: ChangeDetectorRef,
+    private zone: NgZone,
+    private authSession: AuthSessionService
+  ) {}
 
   statusLabel(status: string): string {
     return STATUS_LABELS[(status || '').toUpperCase()] || status;
   }
 
   async ngOnInit(): Promise<void> {
-    const token = localStorage.getItem('workshop_token');
-    this.user = JSON.parse(localStorage.getItem('workshop_user') || '{}');
+    const token = this.authSession.getToken();
+    this.user = this.authSession.getUser();
     if (!token) {
       await this.router.navigate(['/login']);
       return;
@@ -72,8 +78,7 @@ export class DashboardComponent implements OnInit {
   }
 
   async logout(): Promise<void> {
-    localStorage.removeItem('workshop_token');
-    localStorage.removeItem('workshop_user');
+    this.authSession.clearSession();
     await this.router.navigate(['/login']);
   }
 }

@@ -1,8 +1,10 @@
 import '@angular/compiler';
+import { ChangeDetectorRef, NgZone } from '@angular/core';
 import { Router } from '@angular/router';
 import axios from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthSessionService } from '../services/auth-session.service';
+import { DashboardComponent } from '../dashboard/dashboard.component';
 import { LoginComponent } from './login.component';
 
 vi.mock('axios', () => ({
@@ -41,6 +43,7 @@ describe('LoginComponent characterization', () => {
   let storage: MemoryStorage;
   let sessionStorage: MemoryStorage;
   let router: Router;
+  let authSession: AuthSessionService;
   let component: LoginComponent;
 
   beforeEach(() => {
@@ -49,7 +52,8 @@ describe('LoginComponent characterization', () => {
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('sessionStorage', sessionStorage);
     router = { navigate: vi.fn().mockResolvedValue(true) } as unknown as Router;
-    component = new LoginComponent(router, new AuthSessionService());
+    authSession = new AuthSessionService();
+    component = new LoginComponent(router, authSession);
     component.username = 'student';
     component.password = 'Workshop123!';
     vi.clearAllMocks();
@@ -59,9 +63,12 @@ describe('LoginComponent characterization', () => {
     vi.unstubAllGlobals();
   });
 
-  it('posts the login contract, persists the session and navigates to dashboard', async () => {
+  it('logs in successfully and loads tasks with the new session', async () => {
     const user = { username: 'student', displayName: 'Student' };
     vi.mocked(axios.post).mockResolvedValueOnce({ data: { token: 'token-123', user } } as never);
+    vi.mocked(axios.get).mockResolvedValueOnce({ data: [
+      { title: 'Review requirements', status: 'TODO', priority: 'HIGH', owner: 'student' }
+    ] } as never);
 
     await component.login();
 
@@ -75,6 +82,17 @@ describe('LoginComponent characterization', () => {
     expect(storage.getItem('workshop_token')).toBeNull();
     expect(router.navigate).toHaveBeenCalledWith(['/dashboard']);
     expect(component.busy).toBe(false);
+
+    const changeDetector = { detectChanges: vi.fn() } as unknown as ChangeDetectorRef;
+    const zone = { run: (action: () => void) => action() } as unknown as NgZone;
+    const dashboard = new DashboardComponent(router, changeDetector, zone, authSession);
+    await dashboard.ngOnInit();
+
+    expect(axios.get).toHaveBeenCalledWith('http://localhost:8000/api/tasks?owner=student', {
+      headers: { Authorization: 'Bearer token-123' }
+    });
+    expect(dashboard.visibleTasks).toHaveLength(1);
+    expect(dashboard.loading).toBe(false);
   });
 
   it('does not navigate when the backend response has no token', async () => {
@@ -155,6 +173,23 @@ describe('LoginComponent characterization', () => {
     await component.login();
 
     expect(component.message).toContain('Error desconocido');
+  });
+
+  it('shows the timeout error and clears busy when login exceeds five seconds', async () => {
+    vi.mocked(axios.post).mockRejectedValueOnce({
+      code: 'ECONNABORTED',
+      message: 'timeout of 5000ms exceeded'
+    });
+
+    await component.login();
+
+    expect(axios.post).toHaveBeenCalledWith(
+      'http://localhost:8080/auth/login',
+      { username: 'student', password: 'Workshop123!', client: 'angular-workshop' },
+      { timeout: 5000 }
+    );
+    expect(component.message).toContain('timeout of 5000ms exceeded');
+    expect(component.busy).toBe(false);
   });
 
   it('keeps defaults when saved preferences are invalid JSON', () => {

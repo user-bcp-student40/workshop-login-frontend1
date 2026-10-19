@@ -1,46 +1,153 @@
-# Mapa y contrato funcional del frontend
+# Endpoints externos
 
-Documento derivado de inspeccion estatica del frontend. Describe lo que el cliente envia y espera, no un contrato verificado de los servidores. No se consultaron otros componentes del workspace ni se ejecutaron peticiones. El seguimiento de hallazgos vive exclusivamente en `../HALLAZGOS.md`.
+Esta pagina describe lo que el cliente Angular envia, consume y muestra. El backend no se inspecciono ni se hicieron capturas HTTP: los ejemplos de respuesta reproducen fixtures de pruebas locales y muestran formas que el cliente acepta, no respuestas observadas de los servicios. Cuando el codigo no fija un detalle del contrato del servidor, se declara como pregunta abierta.
 
-## Ejecucion y dependencias
+## Login - POST /auth/login
 
-Segun `README.md:14-22`, se requiere Node.js >=22.12.0; ejecutar `npm install` y `npm start` desde este repositorio sirve la aplicacion en http://localhost:4200. No se ejecutaron estos comandos durante el analisis.
+### 1. Quien lo llama
 
-`package.json:13-32` declara Angular 21.2.19 (common, compiler, core, forms, platform-browser y router), Axios 0.31.0, Lodash 4.17.21, RxJS 7.8.2, tslib 2.8.1 y zone.js 0.15.1. Las herramientas incluyen Angular CLI/build/compiler, TypeScript 5.9.3, tipos de Lodash y Vitest/coverage-v8 3.2.4. Son versiones declaradas, no un inventario de paquetes instalados ni una auditoria de CVEs.
+`LoginComponent.login()` inicia la solicitud cuando el usuario pulsa Ingresar y las credenciales no estan vacias tras aplicar `trim()` solo a la validacion. Los valores originales se envian, sin recortarlos. Usa Axios y configura un timeout de 5000 ms. Evidencia: `src/app/login/login.component.ts`.
 
-Dependencias externas esperadas por el cliente: autenticacion en http://localhost:8080 y tareas en http://localhost:8000. No se inspecciono su implementacion; sus respuestas, permisos, CORS y disponibilidad no estan verificados.
+### 2. Que envia
 
-## Componentes y relaciones
+URL completa: `http://localhost:8080/auth/login`.
 
-| Superficie | Responsabilidad y dependencias | Evidencia |
-|---|---|---|
-| Arranque | bootstrapApplication registra el router y monta AppComponent. | src/main.ts:1; src/main.ts:6 |
-| AppComponent | Contiene un RouterOutlet, sin logica de autenticacion. | src/app/app.component.ts:7; src/app/app.component.ts:8 |
-| Rutas | Carga diferida de /login y /dashboard; raiz y rutas desconocidas redirigen a /login. No se declara un guard en estas rutas. | src/app/app.routes.ts:3; src/app/app.routes.ts:6; src/app/app.routes.ts:10; src/app/app.routes.ts:12; src/app/app.routes.ts:13 |
-| LoginComponent | CommonModule y FormsModule para la vista; Router para navegar; Axios para HTTP; AuthSessionService para token y usuario en sessionStorage; localStorage y lodash/merge para preferencias. La plantilla enlaza credenciales, accion login y mensaje. | src/app/login/login.component.ts:1; src/app/login/login.component.ts:12; src/app/login/login.component.ts:23; src/app/login/login.component.html:19; src/app/login/login.component.html:30; src/app/login/login.component.html:34; src/app/login/login.component.html:39 |
-| DashboardComponent | CommonModule para la vista; Router y Axios para navegacion y tareas; AuthSessionService para leer y limpiar sesion en sessionStorage; NgZone y ChangeDetectorRef para actualizar la vista; formatTaskLabel para etiquetas. | src/app/dashboard/dashboard.component.ts:1; src/app/dashboard/dashboard.component.ts:6; src/app/dashboard/dashboard.component.ts:33; src/app/dashboard/dashboard.component.ts:57; src/app/dashboard/dashboard.component.ts:66 |
-| formatTaskLabel | Recibe una tarea; devuelve prioridad y propietario en mayusculas separados por un punto medio. Valores ausentes: NORMAL y SIN-ASIGNAR; tarea ausente: SIN-DATOS. | src/app/utils/legacy-format.ts:1; src/app/utils/legacy-format.ts:3; src/app/utils/legacy-format.ts:5; src/app/utils/legacy-format.ts:7 |
-| Vistas de tareas | Presenta usuario, carga, error, tareas visibles y estado vacio; el boton de cierre llama logout. Los estados conocidos se traducen mediante STATUS_LABELS. | src/app/dashboard/dashboard.component.html:6; src/app/dashboard/dashboard.component.html:9; src/app/dashboard/dashboard.component.html:13; src/app/dashboard/dashboard.component.html:18; src/app/dashboard/dashboard.component.html:21; src/app/dashboard/dashboard.component.html:27; src/app/dashboard/dashboard.component.ts:7 |
-
-## Endpoints consumidos
-
-| Operacion | Solicitud del cliente | Respuesta esperada por el cliente | Evidencia |
+| Parte | Campo | Valor o regla | Ejemplo verificable |
 |---|---|---|---|
-| Autenticar | POST http://localhost:8080/auth/login; cuerpo con username, password y client fijo angular-workshop; timeout de 5000 ms. No se agrega Authorization en esta llamada. | response.data.token con valor truthy y response.data.user serializable. El cliente consume luego user.username y user.displayName. No hay validacion de esquema ni tipo. | src/app/login/login.component.ts:41; src/app/login/login.component.ts:43; src/app/login/login.component.ts:44; src/app/login/login.component.ts:46; src/app/login/login.component.ts:48; src/app/dashboard/dashboard.component.ts:43; src/app/dashboard/dashboard.component.html:6 |
-| Consultar tareas | GET http://localhost:8000/api/tasks?owner= seguido de user.username o cadena vacia, concatenado sin codificacion explicita; cabecera Authorization: Bearer seguida del token almacenado. No se configura timeout en esta llamada. | response.data como arreglo de tareas; se consumen status, priority, owner, title y description. El cliente agrega label a las tareas no archivadas. | src/app/dashboard/dashboard.component.ts:43; src/app/dashboard/dashboard.component.ts:44; src/app/dashboard/dashboard.component.ts:46; src/app/dashboard/dashboard.component.ts:49; src/app/dashboard/dashboard.component.ts:50; src/app/utils/legacy-format.ts:5; src/app/utils/legacy-format.ts:6; src/app/dashboard/dashboard.component.html:23; src/app/dashboard/dashboard.component.html:24 |
+| Metodo y URL | - | POST a la URL indicada. | `POST http://localhost:8080/auth/login` |
+| Headers | - | El componente no proporciona headers ni un header Authorization para esta llamada. | Sin headers configurados por el componente. |
+| Body | `username` | Valor del campo de usuario; debe no ser null/undefined y no quedar vacio tras `trim()`. El valor enviado no se recorta. | `"student"` |
+| Body | `password` | Valor del campo de contrasena; misma validacion local, sin recortar el valor enviado. | `"Workshop123!"` |
+| Body | `client` | Literal fijo `angular-workshop`. | `"angular-workshop"` |
+| Configuracion Axios | `timeout` | 5000 milisegundos. | `5000` |
 
-No hay una llamada HTTP de logout, renovacion de token o revocacion en el flujo inspeccionado. No se deducen codigos de estado de exito o error, duracion del token ni autorizacion del servidor a partir de este cliente.
+Ejemplo del body usado por el test del componente:
 
-## Flujo que se debe preservar
+```json
+{
+	"username": "student",
+	"password": "Workshop123!",
+	"client": "angular-workshop"
+}
+```
 
-1. **Entrada y preferencias.** La raiz abre /login. El constructor del login lee workshop_preferences de localStorage, interpreta JSON y lo mezcla con los valores iniciales theme=light, showTips=true y compact=false. Si falla, registra el error y conserva el estado disponible (`src/app/app.routes.ts:12`; `src/app/login/login.component.ts:20`; `src/app/login/login.component.ts:23-28`).
-2. **Validacion local.** login limpia message y rechaza usuario o contrasena nulos, indefinidos o vacios tras trim. La comprobacion no transforma los valores enviados al servidor. Al enviar activa busy, que deshabilita el boton (`src/app/login/login.component.ts:31-44`; `src/app/login/login.component.html:34`).
-3. **Autenticacion y almacenamiento.** Tras el POST, si existe token, `AuthSessionService` guarda workshop_token y workshop_user como JSON en sessionStorage; el login guarda workshop_preferences en localStorage y luego navega a /dashboard. Sin token muestra un mensaje. Si hay excepcion, combina el usuario con response.data.message, error.message o un texto alternativo. finally desactiva busy. La plantilla presenta message mediante innerHTML con la sanitizacion normal de Angular (`src/app/login/login.component.ts:46-60`; `src/app/login/login.component.html:39`; `src/app/services/auth-session.service.ts:22-24`).
-4. **Lectura de sesion.** Al iniciar el dashboard, `AuthSessionService` lee workshop_token y deserializa workshop_user desde sessionStorage, usando {} si falta. Si no hay token redirige a /login y retorna. El JSON del usuario se interpreta antes de esa comprobacion y fuera del try de la consulta; JSON corrupto puede interrumpir este flujo. La presencia del token no comprueba su validez (`src/app/dashboard/dashboard.component.ts:42-49`; `src/app/services/auth-session.service.ts:13-18`).
-5. **Consulta y presentacion.** Solicita tareas con owner y Bearer. Excluye solo status exactamente ARCHIVED de visibleTasks, asigna etiquetas y ordena mediante el comparador de prioridad existente (a.priority > b.priority ? -1 : 1); no debe suponerse un orden semantico adicional. Guarda el arreglo completo en tasks y el filtrado en visibleTasks. Tanto exito como error entran en zone.run, desactivan loading y llaman detectChanges (`src/app/dashboard/dashboard.component.ts:43-70`).
-6. **Errores de tareas.** Muestra response.data.detail, error.message o el mensaje alternativo mediante interpolacion. No hay tratamiento especifico de 401/403, borrado de sesion ni redireccion en este catch (`src/app/dashboard/dashboard.component.ts:65-70`; `src/app/dashboard/dashboard.component.html:18`).
-7. **Cierre de sesion.** `AuthSessionService` elimina workshop_token y workshop_user de sessionStorage, conserva workshop_preferences en localStorage y navega a /login. Es un cierre local, sin revocacion remota (`src/app/dashboard/dashboard.component.ts:80-83`; `src/app/services/auth-session.service.ts:27-29`).
+El componente no fija explicitamente `Content-Type`; no se afirma aqui el header serializado final que Axios agrega.
 
-## Verificacion disponible
+### 3. Que espera recibir en exito
 
-La configuracion descubre `src/**/*.spec.ts` con Vitest en entorno node (`vitest.config.ts:4-6`). La prueba existente cubre un caso nominal de formatTaskLabel (`src/app/utils/legacy-format.spec.ts:4-7`). Los comandos declarados son npm test, npm run test:coverage y npm run audit:workshop (`package.json:8-10`); no se ejecutaron ni se atribuyen resultados a ellos.
+El componente no consulta `response.status`: trata como exitoso lo que Axios resuelve y comprueba que `response.data.token` sea truthy. Axios, sin `validateStatus` personalizado en esta llamada, resuelve por defecto estados 2xx; el codigo exacto que entrega el backend no esta fijado por el frontend.
+
+| Campo consumido | Uso y validacion realizada |
+|---|---|
+| `data.token` | Debe ser truthy para continuar. Se guarda mediante `AuthSessionService` como `workshop_token` en `sessionStorage` y luego se envia como Bearer al endpoint de tareas. El frontend no valida formato, emisor, expiracion ni firma. |
+| `data.user` | Se serializa y guarda como `workshop_user`. El cliente lee despues `username` para el query `owner` y `displayName`/`username` para el saludo. El componente no valida que el objeto o esos campos esten presentes. |
+
+Ejemplo de respuesta exitosa usado como fixture de prueba (no capturado del backend):
+
+```json
+{
+	"token": "token-123",
+	"user": {
+		"username": "student",
+		"displayName": "Student"
+	}
+}
+```
+
+Al aceptar token y user, guarda la sesion, guarda `workshop_preferences` aparte en `localStorage` y navega a `/dashboard`.
+
+### 4. Errores y reaccion de la UI
+
+| Caso | Comportamiento del cliente | Resultado visible |
+|---|---|---|
+| Usuario o contrasena vacios | No hace la peticion y no activa `busy`. | Mensaje local para completar el campo. |
+| Respuesta resuelta sin `data.token` truthy | No guarda sesion ni navega; `finally` restablece `busy`. | Mensaje “El backend respondió sin token.” |
+| HTTP no-2xx, error de red o timeout | Axios rechaza la promesa y entra al `catch`; se selecciona `error.response.data.message`, luego `error.message`, luego “Error desconocido”. `finally` restablece `busy`. No hay tratamiento separado por status. | Se muestra usuario y mensaje seleccionado. El texto se asigna a `message`. |
+| Timeout | Axios aborta/rechaza al alcanzar 5000 ms; no hay reintento. | Sigue el mismo `catch`; el mensaje depende de `error.message` que entregue Axios. |
+| Respuesta con token truthy pero `user` ausente o incompatible | No se valida el esquema. Puede guardarse un valor que luego no se pueda deserializar; `getUser()` puede lanzar en el inicio del dashboard, antes del `try` de la peticion de tareas. | No existe un mensaje de login especifico para esta forma; puede fallar la inicializacion del dashboard. |
+
+### 5. Notas de seguridad
+
+- El token vive en `sessionStorage` a traves de `AuthSessionService`; se borra al cerrar sesion y el navegador normalmente elimina el almacenamiento de sesion al cerrar la pestana. Sigue siendo legible por JavaScript del mismo origen: no mitiga el robo del token si ocurre XSS. No es una cookie `HttpOnly`.
+- El endpoint configurado usa HTTP en localhost, no HTTPS. El frontend no configura ni verifica TLS para esta URL.
+- La UI construye mensajes con el usuario y el error. La plantilla actual mantiene `[innerHTML]`; Angular aplica su sanitizacion por defecto y no se observa un bypass con `DomSanitizer`, pero el binding sigue siendo una superficie de HTML dinamico (H-02 continua Pendiente). No se afirma que todo contenido arbitrario del backend se muestre literalmente.
+- `sessionStorage` y las claves de sesion estan encapsuladas en `src/app/services/auth-session.service.ts`. Las preferencias no son el token y permanecen en `localStorage`.
+
+## Tareas - GET /api/tasks?owner=...
+
+### 1. Quien lo llama
+
+`DashboardComponent.ngOnInit()` consulta tareas despues de recuperar la sesion con `AuthSessionService`. Si no hay token, navega a `/login` y no llama al endpoint. Usa Axios sin configurar timeout ni `validateStatus` personalizado. Evidencia: `src/app/dashboard/dashboard.component.ts`.
+
+### 2. Que envia
+
+URL base codificada en el componente: `http://localhost:8000/api/tasks`. El query se concatena directamente, sin `encodeURIComponent`.
+
+| Parte | Campo | Valor o regla | Ejemplo verificable |
+|---|---|---|---|
+| Metodo y URL | - | GET a la URL con query `owner`. | `GET http://localhost:8000/api/tasks?owner=student` |
+| Query | `owner` | `user.username || ''`, concatenado sin codificacion explicita. | `owner=student`; si no hay username se envia `owner=` |
+| Header | `Authorization` | `Bearer ` seguido por el token obtenido de `AuthSessionService`. | `Authorization: Bearer token-123` |
+| Body | - | El codigo no envia body en el GET. | Sin body configurado. |
+| Timeout | - | No se configura timeout en esta llamada. | Sin timeout establecido por el componente. |
+
+Ejemplo de llamada con los valores usados en los tests:
+
+```http
+GET http://localhost:8000/api/tasks?owner=student
+Authorization: Bearer token-123
+```
+
+### 3. Que espera recibir en exito
+
+El componente no consulta `response.status` ni comprueba el esquema de `response.data`. Axios resuelve por defecto respuestas 2xx; el status exacto del contrato del servidor sigue abierto.
+
+| Campo consumido | Uso realizado por el cliente |
+|---|---|
+| `data` | Se itera como si fuera una lista de tareas y se asigna a `tasks`; no hay validacion runtime de que sea un array. |
+| `status` | Se excluye de `visibleTasks` solo la tarea cuyo valor sea exactamente `ARCHIVED`. Se usa tambien para el label visual. |
+| `priority` | Se usa en el ordenamiento existente y para construir el label. |
+| `owner` | Se usa para construir el label de la tarea. |
+| `title`, `description` | Se muestran en la tarjeta de tarea. |
+| `label` | Campo calculado localmente por `formatTaskLabel` a partir de `priority` y `owner`; no se espera que venga del servidor. |
+
+El codigo y los tests no fijan tipos ni campos obligatorios del contrato remoto. Ejemplo de elemento proveniente del fixture de prueba (no capturado del backend):
+
+```json
+[
+	{
+		"title": "Review requirements",
+		"status": "TODO",
+		"priority": "HIGH",
+		"owner": "student"
+	}
+]
+```
+
+### 4. Errores y reaccion de la UI
+
+| Caso | Comportamiento del cliente | Resultado visible |
+|---|---|---|
+| Token ausente antes de llamar | No hace el GET; navega a `/login`. | Se muestra la pantalla de login. |
+| Token invalido/expirado (por ejemplo, backend responde 401) o sin permiso (por ejemplo, 403) | No hay rama por status. Axios rechaza respuestas no-2xx; el `catch` elige `error.response.data.detail`, luego `error.message`, luego “No se pudo cargar el dashboard”. No limpia sesion ni redirige automaticamente. | `error` se muestra en `<p class="error">` mediante interpolacion Angular. |
+| Error de red | Entra al mismo `catch`, termina `loading` y muestra `error.message` si existe, si no el fallback. | Se oculta el estado de carga y aparece el error. |
+| Timeout | No existe timeout configurado por este componente; el cliente no define un limite de tiempo propio para esta solicitud. | Si la promesa finalmente rechaza, aplica el manejo generico anterior; mientras no rechace, el dashboard permanece cargando. |
+| `data` nulo o forma que provoca excepcion al iterar/procesar | La excepcion ocurre dentro del `try` y pasa al `catch`; no hay validacion ni mensaje distinto por esquema. | Se muestra `error.message` o el fallback y termina la carga. |
+| `data` con forma inesperada que no lanza excepcion | Puede producir una lista vacia o contenido incompleto; no hay validacion de esquema. | Puede aparecer “No hay tareas para mostrar todavía.” o tarjetas con campos vacios. |
+
+### 5. Notas de seguridad
+
+- El Bearer procede de `sessionStorage` a traves de `AuthSessionService`. Sigue accesible a JavaScript del mismo origen y no protege frente a XSS; H-01 esta registrado como Pendiente por esta limitacion.
+- El frontend envia el token como header `Authorization`; no se observa que lo incluya en la URL. El `owner` se concatena sin codificacion, por lo que nombres con caracteres reservados pueden alterar el query. El formato permitido por el backend es pregunta abierta.
+- La vista del dashboard muestra los mensajes de error con interpolacion Angular, no con `[innerHTML]`. Los campos de tarea se interpolan en la plantilla; no se usa `DomSanitizer`.
+- No se conoce si el backend valida que `owner` coincida con el principal del token. No asumir que el filtro del frontend o el query autorizan el acceso: el control de acceso del servidor es pregunta abierta.
+
+## Preguntas abiertas del contrato remoto
+
+- Que status HTTP exacto retorna cada endpoint en exito y cuales son los esquemas completos/obligatorios de sus respuestas.
+- Que formato, expiracion y semantica de revocacion tiene el token; el cliente solo comprueba que sea truthy y lo reenvia como Bearer.
+- Que respuestas de error emite cada backend, ademas de los campos `message` (login) y `detail` (tareas) que el frontend intenta leer.
+- Que valores y caracteres acepta `owner`, y como se codifica/valida en el servidor.
+- Si el backend de tareas aplica autorizacion al propietario independientemente del query recibido.
+
+El cierre de sesion no llama a un endpoint externo: solo limpia token y usuario de `sessionStorage` y navega a `/login`.

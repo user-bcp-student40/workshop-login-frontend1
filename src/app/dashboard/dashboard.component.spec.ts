@@ -116,6 +116,40 @@ describe('DashboardComponent characterization', () => {
     expect(component.error).toBe('Session expired');
   });
 
+  it('shows an invalid-token response without clearing the session or redirecting', async () => {
+    sessionStorage.setItem('workshop_token', 'expired-token');
+    sessionStorage.setItem('workshop_user', JSON.stringify({ username: 'student' }));
+    vi.mocked(axios.get).mockRejectedValueOnce({
+      response: { status: 401, data: { detail: 'Token invalido' } }
+    });
+
+    await component.ngOnInit();
+
+    expect(axios.get).toHaveBeenCalledWith('http://localhost:8000/api/tasks?owner=student', {
+      headers: { Authorization: 'Bearer expired-token' }
+    });
+    expect(component.error).toBe('Token invalido');
+    expect(component.loading).toBe(false);
+    expect(sessionStorage.getItem('workshop_token')).toBe('expired-token');
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
+  it('shows a timeout rejection from the task request without logging out', async () => {
+    sessionStorage.setItem('workshop_token', 'token-123');
+    sessionStorage.setItem('workshop_user', JSON.stringify({ username: 'student' }));
+    vi.mocked(axios.get).mockRejectedValueOnce({
+      code: 'ECONNABORTED',
+      message: 'Task request timed out'
+    });
+
+    await component.ngOnInit();
+
+    expect(component.error).toBe('Task request timed out');
+    expect(component.loading).toBe(false);
+    expect(sessionStorage.getItem('workshop_token')).toBe('token-123');
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
   it('uses a fallback when the task error has no detail or message', async () => {
     sessionStorage.setItem('workshop_token', 'token-123');
     vi.mocked(axios.get).mockRejectedValueOnce({});
